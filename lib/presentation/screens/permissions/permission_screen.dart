@@ -1,0 +1,21 @@
+class PermissionScreen extends StatelessWidget {
+  const PermissionScreen({super.key});
+
+  Future<void> requestPermissions(BuildContext context) async {
+    await Permission.camera.request();
+    await Permission.storage.request();
+    context.go('/home');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ElevatedButton(
+          child: const Text("Grant Permissions"),
+          onPressed: () => requestPermissions(context),
+        ),
+      ),
+    );
+  }
+}
