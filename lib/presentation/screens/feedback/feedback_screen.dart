@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 class FeedbackScreen extends StatelessWidget {
   final String imagePath;
   const FeedbackScreen({super.key, required this.imagePath});
