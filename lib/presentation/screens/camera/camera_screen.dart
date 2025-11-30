@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:camera/camera.dart';
+import '../../../core/utils/overlay_painter.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -19,7 +21,11 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> initCamera() async {
     final cameras = await availableCameras();
-    controller = CameraController(cameras.first, ResolutionPreset.medium);
+    controller = CameraController(
+      cameras.first,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
     await controller!.initialize();
     if (mounted) setState(() {});
   }
@@ -27,7 +33,9 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   Widget build(BuildContext context) {
     if (controller == null || !controller!.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
@@ -35,7 +43,7 @@ class _CameraScreenState extends State<CameraScreen> {
         children: [
           CameraPreview(controller!),
 
-          // Simple overlay (Rule of Thirds)
+          // Rule of Thirds Overlay
           CustomPaint(
             painter: GridOverlayPainter(),
             child: Container(),
