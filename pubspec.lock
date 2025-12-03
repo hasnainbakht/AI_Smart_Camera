@@ -26,13 +26,13 @@ packages:
     source: hosted
     version: "0.11.3"
   camera_android_camerax:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: camera_android_camerax
-      sha256: "6bccbf654e5deb1b3d068c5b39804cd71ca3e341326463253dd51591498e3214"
+      sha256: "360a9436980590e7268e0ff9eff482ff73ac3e0f66fffdd203cd93d1bfed0fc4"
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.25"
+    version: "0.6.25+1"
   camera_avfoundation:
     dependency: transitive
     description:

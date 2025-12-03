@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:camera/camera.dart';
+import 'package:smart_camera/presentation/screens/camera/overlay_selector.dart';
 import '../../../core/utils/overlay_painter.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -12,6 +13,13 @@ class CameraScreen extends StatefulWidget {
 
 class _CameraScreenState extends State<CameraScreen> {
   CameraController? controller;
+  OverlayOptions selectedOverlay = const OverlayOptions(
+    showRuleOfThirds: true,
+    showGoldenRatio: false,
+    showCenterCross: false,
+    opacity: 0.8,
+    strokeWidth: 1.0,
+  );
 
   @override
   void initState() {
@@ -33,9 +41,7 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   Widget build(BuildContext context) {
     if (controller == null || !controller!.value.isInitialized) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -45,10 +51,28 @@ class _CameraScreenState extends State<CameraScreen> {
 
           // Rule of Thirds Overlay
           CustomPaint(
-            painter: GridOverlayPainter(),
+            painter: GridOverlayPainter(
+              showRuleOfThirds: selectedOverlay.showRuleOfThirds,
+              showGoldenRatio: selectedOverlay.showGoldenRatio,
+              showCenterCross: selectedOverlay.showCenterCross,
+              strokeWidth: selectedOverlay.strokeWidth,
+              lineColor: Colors.white.withOpacity(selectedOverlay.opacity),
+            ),
             child: Container(),
           ),
-          
+          Positioned(
+            top: 40,
+            right: 10,
+            child: OverlaySelector(
+              initial: selectedOverlay,
+              onChanged: (opts) {
+                setState(() {
+                  selectedOverlay = opts;
+                });
+              },
+            ),
+          ),
+
           Positioned(
             bottom: 30,
             left: 0,
@@ -62,7 +86,7 @@ class _CameraScreenState extends State<CameraScreen> {
                 child: const Icon(Icons.camera_alt),
               ),
             ),
-          )
+          ),
         ],
       ),
     );

@@ -17,7 +17,13 @@ final appRouter = GoRouter(
     GoRoute(path: '/permissions', builder: (_, __) => const PermissionScreen()),
     GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
     GoRoute(path: '/camera', builder: (_, __) => const CameraScreen()),
-    GoRoute(path: '/feedback', builder: (_, __) => const FeedbackScreen(imagePath: '',)),
+    GoRoute(
+  path: '/feedback',
+  builder: (context, state) {
+    final imagePath = state.extra as String?;
+    return FeedbackScreen(imagePath: imagePath ?? '');
+  },
+),
     GoRoute(path: '/gallery', builder: (_, __) => const GalleryScreen()),
     GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
   ],
