@@ -14,7 +14,7 @@ final appRouter = GoRouter(
   routes: [
     GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
     GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
-    GoRoute(path: '/', builder: (_, __) => const CameraScreen()),
+    GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
     GoRoute(path: '/camera', builder: (_, __) => const CameraScreen()),
     GoRoute(
   path: '/feedback',
