@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'presentation/screens/splash/splash_screen.dart';
-import 'presentation/screens/permissions/permission_screen.dart';
 import 'app/routes.dart';
 
 // final GoRouter _router = GoRouter(
