@@ -48,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _controller.forward(from: 0);
       }
     });
+    
 
     _controller.forward();
   }
@@ -76,32 +77,77 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // ------------------- TOP BAR -------------------
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Smart AI Camera",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => context.go('/settings'),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white12,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.settings, color: Colors.white),
-                    ),
-                  ),
-                ],
+// ------------------- TOP BAR -------------------
+Row(
+  children: [
+    // LEFT TITLE (EXPANDED SO IT PUSHES RIGHT SIDE)
+    Expanded(
+      child: Text(
+        "Smart AI Camera",
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 22, 
+          fontWeight: FontWeight.bold,
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+
+    const SizedBox(width: 12),
+
+    // RIGHT SIDE: FLEXIBLE BUTTON ROW
+    Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // --------- UPGRADE BADGE ---------
+        GestureDetector(
+          onTap: () => context.go('/pricing'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEE0979), Color(0xFFFF6A00)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(height: 20),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 6,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Text(
+              "Upgrade",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 10),
+
+        // --------- SETTINGS ICON ---------
+        GestureDetector(
+          onTap: () => context.go('/settings'),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white12,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.settings, color: Colors.white),
+          ),
+        ),
+      ],
+    ),
+  ],
+),
 
               // ------------------- TODAY TIP CARD -------------------
               AnimatedBuilder(
