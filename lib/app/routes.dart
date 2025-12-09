@@ -7,6 +7,9 @@ import '../presentation/screens/feedback/rating_screen.dart';
 import '../presentation/screens/camera/camera_screen.dart';
 import '../presentation/screens/gallery/gallery_screen.dart';
 import '../presentation/screens/settings/settings_screen.dart';
+import '../presentation/screens/history/history_screen.dart';
+import '../presentation/screens/auth/auth_screen.dart';
+import '../presentation/screens/edit_picture/edit_picture_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -17,6 +20,21 @@ final appRouter = GoRouter(
     GoRoute(path: '/camera', builder: (_, __) => const CameraScreen()),
     GoRoute(path: '/pricing', builder: (context, state) => const PricingScreen()),
     GoRoute(path: '/rating', builder: (context, state) => const RatingScreen()),
+    GoRoute(path: '/gallery', builder: (context, state) => const GalleryScreen()),
+    GoRoute(path: '/history', builder: (context, state) => const HistoryScreen()),
+    GoRoute(
+      path: '/auth',
+      builder: (context, state) => const AuthScreen(),
+    ),
+  GoRoute(
+  path: '/editor',
+  builder: (context, state) {
+    final imagePath = state.extra as String? ?? 'assets/fake_camera.jpg'; // fallback to dummy image
+    return EditImageScreen(imagePath: imagePath);
+  },
+),
+
+
 
     GoRoute(
   path: '/feedback',

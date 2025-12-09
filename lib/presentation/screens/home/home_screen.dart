@@ -59,8 +59,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
+
+  
+
   final List<Map<String, dynamic>> options = [
-    {'icon': Icons.edit, 'title': 'Edit Pictures', 'route': '/edit'},
+    {'icon': Icons.edit, 'title': 'Edit Pictures', 'route': '/editor'},
     {'icon': Icons.star, 'title': 'Image Rating', 'route': '/rating'},
     {'icon': Icons.history, 'title': 'History', 'route': '/history'},
     {'icon': Icons.photo_library, 'title': 'Gallery', 'route': '/gallery'},
@@ -78,77 +81,100 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           child: Column(
             children: [
 // ------------------- TOP BAR -------------------
-Row(
+Stack(
   children: [
-    // LEFT TITLE (EXPANDED SO IT PUSHES RIGHT SIDE)
-    Expanded(
-      child: Text(
-        "Smart AI Camera",
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 22, 
-          fontWeight: FontWeight.bold,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-    ),
-
-    const SizedBox(width: 12),
-
-    // RIGHT SIDE: FLEXIBLE BUTTON ROW
     Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        // --------- UPGRADE BADGE ---------
-        GestureDetector(
-          onTap: () => context.go('/pricing'),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFEE0979), Color(0xFFFF6A00)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black54,
-                  blurRadius: 6,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Text(
-              "Upgrade",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
+        Expanded(
+          child: Text(
+            "AI Camera",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22, 
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),
-
-        const SizedBox(width: 10),
-
-        // --------- SETTINGS ICON ---------
-        GestureDetector(
-          onTap: () => context.go('/settings'),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white12,
-              borderRadius: BorderRadius.circular(12),
+        const SizedBox(width: 12),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () => context.go('/pricing'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFEE0979), Color(0xFFFF6A00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  "Upgrade",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
-            child: const Icon(Icons.settings, color: Colors.white),
-          ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => context.go('/settings'),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.settings, color: Colors.white),
+              ),
+            ),
+          ],
         ),
       ],
     ),
+    // Login / Sign Up Icon
+    Positioned(
+      top: 0,
+      right: 0,
+      child: GestureDetector(
+        onTap: () => context.go('/auth'),
+        child: Container(
+          margin: const EdgeInsets.all(8),
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              )
+            ],
+          ),
+          child: const Icon(Icons.person, color: Colors.white, size: 20),
+        ),
+      ),
+    ),
   ],
 ),
-
               // ------------------- TODAY TIP CARD -------------------
               AnimatedBuilder(
                 animation: _borderColorAnim,
@@ -252,6 +278,11 @@ Row(
                   },
                 ),
               ),
+
+
+
+
+
 
               // ------------------- CAMERA BUTTON -------------------
               GestureDetector(

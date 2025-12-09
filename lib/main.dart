@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
-      title: 'Smart AI Camera',
+      title: 'AI Camera',
     );
   }
 }
