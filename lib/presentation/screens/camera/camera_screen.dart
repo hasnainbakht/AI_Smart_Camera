@@ -15,7 +15,8 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver {
+class _CameraScreenState extends State<CameraScreen>
+    with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription>? _cameras;
 
@@ -27,6 +28,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   bool showThirds = true;
   bool showCenter = true;
   bool showGolden = false;
+  bool _showProPanel = false;
+  bool _panelFromLeft = true; // true = left panel, false = right
 
   // hardware-supported ranges (populated after init)
   double _minExposure = -2.0;
@@ -60,48 +63,63 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     super.dispose();
   }
 
-void _openProControls() {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.black87,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 5,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(10),
+  void _openProControls() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black87,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-            ),
-            const Text("Pro Controls",
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _sliderControl(label: "Exposure", value: _exposure, min: -2.0, max: 2.0, onChanged: (v) {
-              setState(() => _exposure = v);
-              _controller?.setExposureOffset(v);
-            }),
-            _sliderControl(label: "Zoom", value: _zoom, min: 1.0, max: 8.0, onChanged: (v) {
-              setState(() => _zoom = v);
-              _controller?.setZoomLevel(v);
-            }),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-
-
+              const Text(
+                "Pro Controls",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _sliderControl(
+                label: "Exposure",
+                value: _exposure,
+                min: -2.0,
+                max: 2.0,
+                onChanged: (v) {
+                  setState(() => _exposure = v);
+                  _controller?.setExposureOffset(v);
+                },
+              ),
+              _sliderControl(
+                label: "Zoom",
+                value: _zoom,
+                min: 1.0,
+                max: 8.0,
+                onChanged: (v) {
+                  setState(() => _zoom = v);
+                  _controller?.setZoomLevel(v);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _checkPermissionsAndInit() async {
     await Future.delayed(const Duration(milliseconds: 200));
@@ -110,10 +128,12 @@ void _openProControls() {
       if (!mounted) return;
       showDialog(
         context: context,
-        builder: (_) => PermissionPopup(onGranted: () {
-          Navigator.of(context).pop();
-          _checkPermissionsAndInit();
-        }),
+        builder: (_) => PermissionPopup(
+          onGranted: () {
+            Navigator.of(context).pop();
+            _checkPermissionsAndInit();
+          },
+        ),
       );
       return;
     }
@@ -138,7 +158,11 @@ void _openProControls() {
     // dispose existing controller (if any)
     await _controller?.dispose();
 
-    _controller = CameraController(camera, ResolutionPreset.high, enableAudio: false);
+    _controller = CameraController(
+      camera,
+      ResolutionPreset.high,
+      enableAudio: false,
+    );
 
     try {
       await _controller!.initialize();
@@ -170,7 +194,9 @@ void _openProControls() {
     } catch (e) {
       // initialization error (device may not support)
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Camera init error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Camera init error: $e')));
       }
     }
 
@@ -191,10 +217,15 @@ void _openProControls() {
 
     try {
       flashOn = !flashOn;
-      await _controller!.setFlashMode(flashOn ? FlashMode.torch : FlashMode.off);
+      await _controller!.setFlashMode(
+        flashOn ? FlashMode.torch : FlashMode.off,
+      );
       setState(() {});
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Flash error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Flash error: $e')));
     }
   }
 
@@ -205,7 +236,10 @@ void _openProControls() {
       await _controller!.setExposureOffset(value);
       setState(() => _exposure = value);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exposure error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Exposure error: $e')));
     }
   }
 
@@ -216,7 +250,10 @@ void _openProControls() {
       await _controller!.setZoomLevel(value);
       setState(() => _zoom = value);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Zoom error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Zoom error: $e')));
     }
   }
 
@@ -236,26 +273,49 @@ void _openProControls() {
           'iso': _isoSim,
           'exposure': _exposure,
           'zoom': _zoom,
-        }
+        },
       };
 
       context.push('/feedback', extra: payload);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Capture failed: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Capture failed: $e')));
     }
   }
 
   // Build a color matrix for contrast/brightness/saturation adjustments to preview.
   // Contrast: 1.0 = normal. Brightness: 0 = normal. Saturation: 1 = normal.
-  List<double> _colorMatrix({required double brightness, required double contrast, required double saturation}) {
+  List<double> _colorMatrix({
+    required double brightness,
+    required double contrast,
+    required double saturation,
+  }) {
     // contrast matrix
     final c = contrast;
     final t = (1.0 - c) * 0.5 * 255.0;
     final cm = [
-      c, 0, 0, 0, brightness * 255 + t,
-      0, c, 0, 0, brightness * 255 + t,
-      0, 0, c, 0, brightness * 255 + t,
-      0, 0, 0, 1, 0,
+      c,
+      0,
+      0,
+      0,
+      brightness * 255 + t,
+      0,
+      c,
+      0,
+      0,
+      brightness * 255 + t,
+      0,
+      0,
+      c,
+      0,
+      brightness * 255 + t,
+      0,
+      0,
+      0,
+      1,
+      0,
     ];
 
     // saturation matrix
@@ -267,10 +327,26 @@ void _openProControls() {
     final sg = (1 - s) * gWeight;
     final sb = (1 - s) * bWeight;
     final sm = [
-      sr + s, sg, sb, 0, 0,
-      sr, sg + s, sb, 0, 0,
-      sr, sg, sb + s, 0, 0,
-      0, 0, 0, 1, 0,
+      sr + s,
+      sg,
+      sb,
+      0,
+      0,
+      sr,
+      sg + s,
+      sb,
+      0,
+      0,
+      sr,
+      sg,
+      sb + s,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
     ];
 
     // multiply sm * cm (5x4 matrices represented as 4x5 here) - approximate by applying saturation then contrast/brightness
@@ -289,31 +365,50 @@ void _openProControls() {
     }
     return result;
   }
-Widget _sliderControl({
-  required String label,
-  required double value,
-  required double min,
-  required double max,
-  required ValueChanged<double> onChanged,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: const TextStyle(color: Colors.white70, fontSize: 14),
+
+  Widget _sliderControl({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          onChanged: onChanged,
+          activeColor: Colors.greenAccent,
+          inactiveColor: Colors.white24,
+        ),
+      ],
+    );
+  }
+
+  Widget _proSideButton(IconData icon, bool fromLeft) => GestureDetector(
+    onTap: () {
+      setState(() {
+        _showProPanel = !_showProPanel;
+        _panelFromLeft = fromLeft;
+      });
+    },
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
       ),
-      Slider(
-        value: value,
-        min: min,
-        max: max,
-        onChanged: onChanged,
-        activeColor: Colors.greenAccent,
-        inactiveColor: Colors.white24,
-      ),
-    ],
+      child: Icon(icon, size: 28, color: Colors.white),
+    ),
   );
-}
 
   // Widget _buildManualControls(BuildContext ctx) {
   //   final mq = MediaQuery.of(ctx);
@@ -400,7 +495,9 @@ Widget _sliderControl({
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70))),
+          Expanded(
+            child: Text(label, style: const TextStyle(color: Colors.white70)),
+          ),
           Text(value, style: const TextStyle(color: Colors.white70)),
         ],
       ),
@@ -419,7 +516,8 @@ Widget _sliderControl({
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) Icon(icon, size: 12, color: Colors.greenAccent.withOpacity(0.9)),
+          if (icon != null)
+            Icon(icon, size: 12, color: Colors.greenAccent.withOpacity(0.9)),
           if (icon != null) const SizedBox(width: 6),
           Text(text, style: const TextStyle(color: Colors.white, fontSize: 11)),
         ],
@@ -428,17 +526,17 @@ Widget _sliderControl({
   }
 
   Widget _sideButton(IconData icon, VoidCallback onTap) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Icon(icon, size: 26, color: Colors.white),
-        ),
-      );
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Icon(icon, size: 26, color: Colors.white),
+    ),
+  );
 
   Widget _secondaryToolbar() {
     return Container(
@@ -450,11 +548,23 @@ Widget _sliderControl({
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _toolbarButton("Thirds", showThirds, (v) => setState(() => showThirds = v)),
+          _toolbarButton(
+            "Thirds",
+            showThirds,
+            (v) => setState(() => showThirds = v),
+          ),
           const SizedBox(width: 8),
-          _toolbarButton("Center", showCenter, (v) => setState(() => showCenter = v)),
+          _toolbarButton(
+            "Center",
+            showCenter,
+            (v) => setState(() => showCenter = v),
+          ),
           const SizedBox(width: 8),
-          _toolbarButton("Golden", showGolden, (v) => setState(() => showGolden = v)),
+          _toolbarButton(
+            "Golden",
+            showGolden,
+            (v) => setState(() => showGolden = v),
+          ),
         ],
       ),
     );
@@ -469,38 +579,43 @@ Widget _sliderControl({
           color: value ? Colors.greenAccent.withOpacity(0.85) : Colors.white12,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 13)),
+        child: Text(
+          title,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+        ),
       ),
     );
   }
 
   Widget _captureButton() => GestureDetector(
-        onTap: _capturePhoto,
-        child: Container(
-          height: 84,
-          width: 84,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 5),
-            boxShadow: [BoxShadow(color: Colors.white.withOpacity(0.08), blurRadius: 24)],
-          ),
-        ),
-      );
+    onTap: _capturePhoto,
+    child: Container(
+      height: 84,
+      width: 84,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 5),
+        boxShadow: [
+          BoxShadow(color: Colors.white.withOpacity(0.08), blurRadius: 24),
+        ],
+      ),
+    ),
+  );
 
   Widget _bottomNavBar(BuildContext context) => Container(
-        height: 70,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        color: Colors.black.withOpacity(0.95),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _bottomItem(Icons.home, "Home", "/home"),
-            _bottomItem(Icons.camera_alt, "Camera", "/camera"),
-            _bottomItem(Icons.video_library, "Media", "/gallery"),
-            _bottomItem(Icons.settings, "Settings", "/settings"),
-          ],
-        ),
-      );
+    height: 70,
+    padding: const EdgeInsets.symmetric(horizontal: 18),
+    color: Colors.black.withOpacity(0.95),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _bottomItem(Icons.home, "Home", "/home"),
+        _bottomItem(Icons.camera_alt, "Camera", "/camera"),
+        _bottomItem(Icons.video_library, "Media", "/gallery"),
+        _bottomItem(Icons.settings, "Settings", "/settings"),
+      ],
+    ),
+  );
 
   Widget _bottomItem(IconData icon, String label, String route) {
     final isActive = GoRouterState.of(context).uri.toString() == route;
@@ -509,9 +624,19 @@ Widget _sliderControl({
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 24, color: isActive ? Colors.greenAccent : Colors.white70),
+          Icon(
+            icon,
+            size: 24,
+            color: isActive ? Colors.greenAccent : Colors.white70,
+          ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 11, color: isActive ? Colors.greenAccent : Colors.white60)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: isActive ? Colors.greenAccent : Colors.white60,
+            ),
+          ),
         ],
       ),
     );
@@ -543,6 +668,87 @@ Widget _sliderControl({
                   )
                 : const Center(child: CircularProgressIndicator()),
           ),
+          // Slide-in Pro Panel
+          if (_showProPanel)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              top: 0,
+              bottom: 0,
+              left: _panelFromLeft ? 0 : null,
+              right: !_panelFromLeft ? 0 : null,
+              width: media.size.width * 0.6,
+              child: Container(
+                color: Colors.black87.withOpacity(0.95),
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Pro Controls",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () =>
+                                setState(() => _showProPanel = false),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _sliderControl(
+                        label: "Exposure",
+                        value: _exposure,
+                        min: _minExposure,
+                        max: _maxExposure,
+                        onChanged: (v) {
+                          setState(() => _exposure = v);
+                          _controller?.setExposureOffset(v);
+                        },
+                      ),
+                      _sliderControl(
+                        label: "Zoom",
+                        value: _zoom,
+                        min: _minZoom,
+                        max: _maxZoom,
+                        onChanged: (v) {
+                          setState(() => _zoom = v);
+                          _controller?.setZoomLevel(v);
+                        },
+                      ),
+                      _sliderControl(
+                        label: "Brightness",
+                        value: _brightness,
+                        min: -1,
+                        max: 1,
+                        onChanged: (v) => setState(() => _brightness = v),
+                      ),
+                      _sliderControl(
+                        label: "Contrast",
+                        value: _contrast,
+                        min: 0,
+                        max: 4,
+                        onChanged: (v) => setState(() => _contrast = v),
+                      ),
+                      _sliderControl(
+                        label: "Saturation",
+                        value: _saturation,
+                        min: 0,
+                        max: 4,
+                        onChanged: (v) => setState(() => _saturation = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // overlays: grid
           if (showThirds || showCenter || showGolden)
@@ -563,14 +769,24 @@ Widget _sliderControl({
             top: media.padding.top + 12,
             left: 12,
             right: 12,
-            child: Wrap(spacing: 8, runSpacing: 6, children: [
-              _miniStat("25mm", icon: Icons.camera_alt),
-              _miniStat("1/50", icon: Icons.shutter_speed),
-              _miniStat("f/1.8", icon: Icons.blur_on),
-              _miniStat("ISO ${_isoSim.toInt()}", icon: Icons.brightness_auto),
-              _miniStat("${(_exposure).toStringAsFixed(2)} EV", icon: Icons.exposure),
-              _miniStat("${_zoom.toStringAsFixed(1)}x", icon: Icons.zoom_in),
-            ]),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _miniStat("25mm", icon: Icons.camera_alt),
+                _miniStat("1/50", icon: Icons.shutter_speed),
+                _miniStat("f/1.8", icon: Icons.blur_on),
+                _miniStat(
+                  "ISO ${_isoSim.toInt()}",
+                  icon: Icons.brightness_auto,
+                ),
+                _miniStat(
+                  "${(_exposure).toStringAsFixed(2)} EV",
+                  icon: Icons.exposure,
+                ),
+                _miniStat("${_zoom.toStringAsFixed(1)}x", icon: Icons.zoom_in),
+              ],
+            ),
           ),
 
           // right side simple controls
@@ -581,7 +797,10 @@ Widget _sliderControl({
               children: [
                 _sideButton(Icons.cameraswitch, _switchCamera),
                 const SizedBox(height: 16),
-                _sideButton(flashOn ? Icons.flash_on : Icons.flash_off, _toggleFlash),
+                _sideButton(
+                  flashOn ? Icons.flash_on : Icons.flash_off,
+                  _toggleFlash,
+                ),
                 const SizedBox(height: 16),
                 _sideButton(Icons.tune, _openProControls),
               ],
@@ -595,12 +814,18 @@ Widget _sliderControl({
             right: 0,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.45),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Text("AI Tip: Center the product", style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  "AI Tip: Center the product",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ),
@@ -626,7 +851,22 @@ Widget _sliderControl({
             bottom: media.size.height * 0.02,
             left: 0,
             right: 0,
-            child: Center(child: _captureButton()),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left button
+                _sideButton(Icons.photo_library, () {
+                  context.go('/gallery'); // example action
+                }),
+
+                // Capture button in center
+                _captureButton(),
+
+                // Right button
+                _sideButton(Icons.cameraswitch, _switchCamera),
+              ],
+            ),
           ),
         ],
       ),

@@ -1,11 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
-/// Simple overlay painter that can draw:
-/// - Rule of Thirds grid
-/// - Golden ratio spiral guide (approx using rectangles)
-/// - Center cross
-///
-/// Configure booleans to show/hide each element and set line color/opacity.
 class GridOverlayPainter extends CustomPainter {
   final bool showRuleOfThirds;
   final bool showGoldenRatio;
@@ -28,7 +24,7 @@ class GridOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
 
-    // Rule of Thirds (2 vertical, 2 horizontal)
+    // 1️⃣ Rule of Thirds
     if (showRuleOfThirds) {
       final v1 = size.width / 3;
       final v2 = 2 * size.width / 3;
@@ -41,43 +37,48 @@ class GridOverlayPainter extends CustomPainter {
       canvas.drawLine(Offset(0, h2), Offset(size.width, h2), paint);
     }
 
-    // Center Cross
+    // 2️⃣ Center Cross
     if (showCenterCross) {
       final cx = size.width / 2;
       final cy = size.height / 2;
-      final crossLen = 20.0;
+      final crossLen = min(size.width, size.height) * 0.03; // scaled
       canvas.drawLine(Offset(cx - crossLen, cy), Offset(cx + crossLen, cy), paint);
       canvas.drawLine(Offset(cx, cy - crossLen), Offset(cx, cy + crossLen), paint);
     }
 
-    // Golden Ratio rectangles (approximate)
+    // 3️⃣ Golden Ratio rectangles & spiral
     if (showGoldenRatio) {
-      // We'll draw nested rectangles using phi ~ 1.618
       const phi = 1.618;
-      // Start with full rect, then shrink by phi progressively to suggest golden rectangles
       Rect rect = Offset.zero & size;
+
+      // Draw nested golden rectangles
       for (int i = 0; i < 3; i++) {
         canvas.drawRect(rect, paint);
-        // shrink horizontally or vertically alternating
-        final w = rect.width / phi;
-        final h = rect.height / phi;
+
+        // Shrink according to longest side
         if (rect.width > rect.height) {
-          rect = Rect.fromLTWH(rect.left, rect.top, w, rect.height);
+          final newWidth = rect.width / phi;
+          rect = Rect.fromLTWH(rect.left, rect.top, newWidth, rect.height);
         } else {
-          rect = Rect.fromLTWH(rect.left, rect.top, rect.width, h);
+          final newHeight = rect.height / phi;
+          rect = Rect.fromLTWH(rect.left, rect.top, rect.width, newHeight);
         }
       }
-      // Optionally draw a subtle spiral guide (approx using arc)
+
+      // Golden spiral arc (responsive)
       final spiralPaint = Paint()
         ..color = lineColor.withOpacity(0.9)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth;
-      final arcRect = Rect.fromCenter(
-        center: Offset(size.width * 0.62, size.height * 0.38),
-        width: size.width * 0.8,
-        height: size.height * 0.8,
+
+      final arcRect = Rect.fromLTWH(
+        size.width * 0.05,   // left
+        size.height * 0.05,  // top
+        size.width * 0.9,    // width
+        size.height * 0.9,   // height
       );
-      canvas.drawArc(arcRect, -1.2, 1.6, false, spiralPaint);
+
+      canvas.drawArc(arcRect, -pi / 2, pi * 0.8, false, spiralPaint);
     }
   }
 
