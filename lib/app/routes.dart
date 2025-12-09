@@ -10,6 +10,8 @@ import '../presentation/screens/settings/settings_screen.dart';
 import '../presentation/screens/history/history_screen.dart';
 import '../presentation/screens/auth/auth_screen.dart';
 import '../presentation/screens/edit_picture/edit_picture_screen.dart';
+import '../presentation/screens/learning/learning_screen.dart';
+import '../presentation/screens/learning/learning_detail_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -33,6 +35,16 @@ final appRouter = GoRouter(
     return EditImageScreen(imagePath: imagePath);
   },
 ),
+GoRoute(
+  path: '/learning',
+  builder: (context, state) => const LearningScreen(),
+),
+GoRoute(
+  path: '/learning/:level',
+  builder: (context, state) =>
+      LearningDetailScreen(level: state.pathParameters['level']!),
+),
+
 
 
 
