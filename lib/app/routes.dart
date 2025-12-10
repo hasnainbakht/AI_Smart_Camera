@@ -12,13 +12,14 @@ import '../presentation/screens/auth/auth_screen.dart';
 import '../presentation/screens/edit_picture/edit_picture_screen.dart';
 import '../presentation/screens/learning/learning_screen.dart';
 import '../presentation/screens/learning/learning_detail_screen.dart';
+import '../presentation/screens/get_started/get_started_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
   routes: [
     GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
     GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
-    GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+    // GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
     GoRoute(path: '/camera', builder: (_, __) => const CameraScreen()),
     GoRoute(path: '/pricing', builder: (context, state) => const PricingScreen()),
     GoRoute(path: '/rating', builder: (context, state) => const RatingScreen()),
@@ -27,6 +28,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),
+    ),
+     GoRoute(
+      path: '/',
+      builder: (context, state) => const GetStartedScreen(),
     ),
   GoRoute(
   path: '/editor',

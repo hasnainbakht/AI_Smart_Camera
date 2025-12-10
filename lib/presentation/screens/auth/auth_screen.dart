@@ -107,10 +107,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           _inputField('Password', _loginPasswordController, Icons.lock, obscureText: true),
           const SizedBox(height: 30),
           _actionButton('Login', () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Login clicked')),
-            );
-          }),
+  final email = _loginEmailController.text.trim();
+  final pass = _loginPasswordController.text.trim();
+
+  if (email == 'test' && pass == 'test') {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Login Successful!')),
+    );
+    context.go('/home');
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Invalid credentials (use test/test)')),
+    );
+  }
+}),
+
           const SizedBox(height: 20),
           TextButton(
             onPressed: () {},

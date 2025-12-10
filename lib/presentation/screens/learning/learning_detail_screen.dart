@@ -1,60 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
-class LearningDetailScreen extends StatelessWidget {
+class LearningDetailScreen extends StatefulWidget {
   final String level;
 
   const LearningDetailScreen({super.key, required this.level});
 
+  @override
+  State<LearningDetailScreen> createState() => _LearningDetailScreenState();
+}
+
+class _LearningDetailScreenState extends State<LearningDetailScreen> {
+  YoutubePlayerController? _controller;
+  String? selectedVideoTitle;
+
   List<Map<String, String>> _getVideos() {
-    switch (level) {
+    switch (widget.level) {
       case "beginner":
         return [
-          {
-            "title": "Photography Basics",
-            "url": "https://www.youtube.com/watch?v=7ZVyNjKSr0M"
-          },
-          {
-            "title": "Camera Settings Explained",
-            "url": "https://www.youtube.com/watch?v=sh7K8p5vsLw"
-          },
+          {"title": "Photography Basics", "url": "https://www.youtube.com/watch?v=7ZVyNjKSr0M"},
+          {"title": "Camera Settings Explained", "url": "https://www.youtube.com/watch?v=sh7K8p5vsLw"},
         ];
-
       case "intermediate":
         return [
-          {
-            "title": "Mastering Exposure",
-            "url": "https://www.youtube.com/watch?v=gBr29N1dVZI"
-          },
-          {
-            "title": "Composition Techniques",
-            "url": "https://www.youtube.com/watch?v=FJg02Q_SnHk"
-          },
+          {"title": "Mastering Exposure", "url": "https://www.youtube.com/watch?v=gBr29N1dVZI"},
+          {"title": "Composition Techniques", "url": "https://www.youtube.com/watch?v=FJg02Q_SnHk"},
         ];
-
       case "advance":
         return [
-          {
-            "title": "Advanced Photography Tips",
-            "url": "https://www.youtube.com/watch?v=Gp8j5Z6bp6k"
-          },
-          {
-            "title": "Understanding Dynamic Range",
-            "url": "https://www.youtube.com/watch?v=_oH1d1GfLmg"
-          },
+          {"title": "Advanced Photography Tips", "url": "https://www.youtube.com/watch?v=Gp8j5Z6bp6k"},
+          {"title": "Understanding Dynamic Range", "url": "https://www.youtube.com/watch?v=_oH1d1GfLmg"},
         ];
-
       default:
         return [];
     }
   }
 
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      throw 'Could not launch $url';
-    }
+  void _playVideo(String url, String title) {
+    final videoId = YoutubePlayer.convertUrlToId(url);
+    if (videoId == null) return;
+
+    // Dispose old controller before creating new one
+    _controller?.dispose();
+
+    _controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        mute: false,
+      ),
+    );
+
+    setState(() {
+      selectedVideoTitle = title;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
   }
 
   @override
@@ -66,50 +72,73 @@ class LearningDetailScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         leading: IconButton(
-    icon: const Icon(Icons.arrow_back, color: Colors.white),
-    onPressed: () => context.go('/home'),
-  ),
-        title: Text(
-          "$level Learning",
-          style: const TextStyle(color: Colors.white),
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/home'),
         ),
+        title: Text("${widget.level} Learning"),
       ),
-
-  
-
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: videos.length,
-        itemBuilder: (context, index) {
-          final video = videos[index];
-          return GestureDetector(
-            onTap: () => _openUrl(video["url"]!),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white10,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.play_circle_fill,
-                      color: Colors.white, size: 35),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      video["title"]!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                ],
+      body: Column(
+        children: [
+          // Show video player only if controller is initialized
+          if (_controller != null)
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: YoutubePlayer(
+                controller: _controller!,
+                showVideoProgressIndicator: true,
+                onReady: () {
+                  // Controller is now ready
+                  print("YouTube Controller is ready!");
+                },
               ),
             ),
-          );
-        },
+          if (selectedVideoTitle != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                selectedVideoTitle!,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          // Video list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: videos.length,
+              itemBuilder: (context, index) {
+                final video = videos[index];
+                final isSelected = selectedVideoTitle == video["title"];
+
+                return GestureDetector(
+                  onTap: () => _playVideo(video["url"]!, video["title"]!),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected ? Colors.blueAccent : Colors.white12,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.play_circle_fill,
+                            color: isSelected ? Colors.blueAccent : Colors.white, size: 40),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(video["title"]!,
+                              style: const TextStyle(color: Colors.white, fontSize: 18)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
