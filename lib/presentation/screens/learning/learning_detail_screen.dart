@@ -19,19 +19,39 @@ class _LearningDetailScreenState extends State<LearningDetailScreen> {
     switch (widget.level) {
       case "beginner":
         return [
-          {"title": "Photography Basics", "url": "https://www.youtube.com/watch?v=7ZVyNjKSr0M"},
-          {"title": "Camera Settings Explained", "url": "https://www.youtube.com/watch?v=sh7K8p5vsLw"},
+          {
+            "title": "Photography Basics",
+            "url": "https://www.youtube.com/watch?v=7ZVyNjKSr0M", 
+          },
+          {
+            "title": "Camera Settings Explained",
+            "url":
+                "https://www.youtube.com/watch?v=3eCQ4tJ4Y7Q", 
+          },
         ];
       case "intermediate":
         return [
-          {"title": "Mastering Exposure", "url": "https://www.youtube.com/watch?v=gBr29N1dVZI"},
-          {"title": "Composition Techniques", "url": "https://www.youtube.com/watch?v=FJg02Q_SnHk"},
+          {
+            "title": "Mastering Exposure",
+            "url": "https://www.youtube.com/watch?v=F8T94sdiNjg",
+          },
+          {
+            "title": "Composition Techniques",
+            "url": "https://www.youtube.com/watch?v=O8H4sO3xQGc",
+          },
         ];
       case "advance":
         return [
-          {"title": "Advanced Photography Tips", "url": "https://www.youtube.com/watch?v=Gp8j5Z6bp6k"},
-          {"title": "Understanding Dynamic Range", "url": "https://www.youtube.com/watch?v=_oH1d1GfLmg"},
+          {
+            "title": "Advanced Photography Tips",
+            "url": "https://www.youtube.com/watch?v=4ZGq6F9rG8E",
+          },
+          {
+            "title": "Understanding Dynamic Range",
+            "url": "https://www.youtube.com/watch?v=uh6FQ1Ao6S8",
+          },
         ];
+
       default:
         return [];
     }
@@ -46,10 +66,7 @@ class _LearningDetailScreenState extends State<LearningDetailScreen> {
 
     _controller = YoutubePlayerController(
       initialVideoId: videoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-      ),
+      flags: const YoutubePlayerFlags(autoPlay: true, mute: false),
     );
 
     setState(() {
@@ -97,7 +114,11 @@ class _LearningDetailScreenState extends State<LearningDetailScreen> {
               padding: const EdgeInsets.all(8.0),
               child: Text(
                 selectedVideoTitle!,
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           // Video list
@@ -124,12 +145,20 @@ class _LearningDetailScreenState extends State<LearningDetailScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.play_circle_fill,
-                            color: isSelected ? Colors.blueAccent : Colors.white, size: 40),
+                        Icon(
+                          Icons.play_circle_fill,
+                          color: isSelected ? Colors.blueAccent : Colors.white,
+                          size: 40,
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: Text(video["title"]!,
-                              style: const TextStyle(color: Colors.white, fontSize: 18)),
+                          child: Text(
+                            video["title"]!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          ),
                         ),
                       ],
                     ),
