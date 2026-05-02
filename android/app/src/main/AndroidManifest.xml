@@ -58,4 +58,8 @@
             <data android:mimeType="text/plain" />
         </intent>
     </queries>
+
+
+<!-- Required for Android 13+ (API 33) — your device -->
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 </manifest>
