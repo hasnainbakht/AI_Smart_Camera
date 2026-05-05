@@ -21,12 +21,11 @@ class _LearningDetailScreenState extends State<LearningDetailScreen> {
         return [
           {
             "title": "Photography Basics",
-            "url": "https://www.youtube.com/watch?v=7ZVyNjKSr0M", 
+            "url": "https://www.youtube.com/watch?v=7ZVyNjKSr0M",
           },
           {
             "title": "Camera Settings Explained",
-            "url":
-                "https://www.youtube.com/watch?v=3eCQ4tJ4Y7Q", 
+            "url": "https://www.youtube.com/watch?v=3eCQ4tJ4Y7Q",
           },
         ];
       case "intermediate":
@@ -88,8 +87,15 @@ class _LearningDetailScreenState extends State<LearningDetailScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          color: Colors.white,
           onPressed: () => context.go('/home'),
         ),
         title: Text("${widget.level} Learning"),
