@@ -1,12 +1,14 @@
 // camera_screen.dart
 import 'dart:async';
-import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/utils/overlay_painter.dart';
 import '../../widgets/permission_popup.dart';
+import '../../../services/detector_service.dart';
+import '../../../services/guidance_service.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -17,110 +19,103 @@ class CameraScreen extends StatefulWidget {
 
 class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
+  // ─── Camera ───────────────────────────────────────────────────────────────
   CameraController? _controller;
   List<CameraDescription>? _cameras;
-
-  // hardware-backed
   bool flashOn = false;
   bool useFrontCamera = false;
 
-  // UI toggles
+  // ─── UI Toggles ───────────────────────────────────────────────────────────
   bool showThirds = true;
   bool showCenter = true;
   bool showGolden = false;
   bool _showProPanel = false;
-  bool _panelFromLeft = true; // true = left panel, false = right
+  bool _panelFromLeft = true;
 
-  // hardware-supported ranges (populated after init)
+  // ─── Hardware-backed ranges ───────────────────────────────────────────────
   double _minExposure = -2.0;
   double _maxExposure = 2.0;
   double _minZoom = 1.0;
   double _maxZoom = 8.0;
 
-  // live values bound to UI (and hardware where supported)
-  double _exposure = 0.0; // real: maps to setExposureOffset
-  double _zoom = 1.0; // real: maps to setZoomLevel
+  // ─── Live hardware values ─────────────────────────────────────────────────
+  double _exposure = 0.0;
+  double _zoom = 1.0;
 
-  // preview-only adjustments (visual preview filters)
-  double _brightness = 0.0; // -1.0 -> +1.0
-  double _contrast = 1.0; // 0.0 -> 4.0
-  double _saturation = 1.0; // 0.0 -> 4.0
-  double _isoSim = 100; // simulated ISO (informational only)
+  // ─── Preview-only adjustments ─────────────────────────────────────────────
+  double _brightness = 0.0;
+  double _contrast = 1.0;
+  double _saturation = 1.0;
+  double _isoSim = 100;
 
   bool _initializing = true;
 
+  // ─── AI Services ──────────────────────────────────────────────────────────
+  final DetectorService _detector = DetectorService();
+  final GuidanceService _guidance = GuidanceService();
+
+  bool _detectorReady = false;
+  bool _isAnalyzing = false;
+
+  // Current guidance result (shown in AI bubble)
+  GuidanceResult _guidanceResult = GuidanceResult(
+    status: PlacementStatus.noObject,
+    message: 'Initializing AI…',
+    placementScore: 0,
+  );
+
+  // Throttle: analyze at most once every 500 ms
+  DateTime _lastAnalysis = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // ─── Life-cycle ───────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initDetector();
     _checkPermissionsAndInit();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller?.stopImageStream();
     _controller?.dispose();
+    _detector.dispose();
     super.dispose();
   }
 
-  void _openProControls() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.black87,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 5,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const Text(
-                "Pro Controls",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              _sliderControl(
-                label: "Exposure",
-                value: _exposure,
-                min: -2.0,
-                max: 2.0,
-                onChanged: (v) {
-                  setState(() => _exposure = v);
-                  _controller?.setExposureOffset(v);
-                },
-              ),
-              _sliderControl(
-                label: "Zoom",
-                value: _zoom,
-                min: 1.0,
-                max: 8.0,
-                onChanged: (v) {
-                  setState(() => _zoom = v);
-                  _controller?.setZoomLevel(v);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _controller?.stopImageStream();
+      _controller?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initCamera();
+    }
   }
 
+  // ─── Detector init ────────────────────────────────────────────────────────
+  Future<void> _initDetector() async {
+    try {
+      await _detector.initialize();
+      if (mounted) setState(() => _detectorReady = true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _guidanceResult = GuidanceResult(
+            status: PlacementStatus.noObject,
+            message: 'AI model failed to load.',
+            placementScore: 0,
+          );
+        });
+      }
+    }
+  }
+
+  // ─── Permissions & camera init ────────────────────────────────────────────
   Future<void> _checkPermissionsAndInit() async {
     await Future.delayed(const Duration(milliseconds: 200));
     final status = await Permission.camera.request();
@@ -137,7 +132,6 @@ class _CameraScreenState extends State<CameraScreen>
       );
       return;
     }
-
     _cameras = await availableCameras();
     await _initCamera();
   }
@@ -155,19 +149,20 @@ class _CameraScreenState extends State<CameraScreen>
             orElse: () => _cameras!.first,
           );
 
-    // dispose existing controller (if any)
+    await _controller?.stopImageStream();
     await _controller?.dispose();
 
     _controller = CameraController(
       camera,
       ResolutionPreset.high,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
     try {
       await _controller!.initialize();
 
-      // query hardware-supported ranges where available
+      // Query hardware ranges
       try {
         _minExposure = await _controller!.getMinExposureOffset();
         _maxExposure = await _controller!.getMaxExposureOffset();
@@ -175,7 +170,6 @@ class _CameraScreenState extends State<CameraScreen>
         _minExposure = -2.0;
         _maxExposure = 2.0;
       }
-
       try {
         _minZoom = await _controller!.getMinZoomLevel();
         _maxZoom = await _controller!.getMaxZoomLevel();
@@ -184,28 +178,78 @@ class _CameraScreenState extends State<CameraScreen>
         _maxZoom = 8.0;
       }
 
-      // clamp current values into ranges
       _exposure = _exposure.clamp(_minExposure, _maxExposure);
       _zoom = _zoom.clamp(_minZoom, _maxZoom);
-
-      // apply current values to controller (safe to await)
       await _controller!.setExposureOffset(_exposure);
       await _controller!.setZoomLevel(_zoom);
+
+      // Start image stream for AI analysis
+      await _startImageStream();
     } catch (e) {
-      // initialization error (device may not support)
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Camera init error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Camera init error: $e')));
       }
     }
 
     if (!mounted) return;
-    setState(() {
-      _initializing = false;
+    setState(() => _initializing = false);
+  }
+
+  // ─── Image stream → AI ────────────────────────────────────────────────────
+  Future<void> _startImageStream() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    await _controller!.startImageStream((CameraImage image) async {
+      if (!_detectorReady || _isAnalyzing) return;
+
+      final now = DateTime.now();
+      if (now.difference(_lastAnalysis).inMilliseconds < 500) return;
+      _lastAnalysis = now;
+
+      _isAnalyzing = true;
+      try {
+        // Convert CameraImage planes → JPEG-like Uint8List
+        // CameraImage with ImageFormatGroup.jpeg has a single plane
+        final Uint8List bytes = _cameraImageToBytes(image);
+        if (bytes.isEmpty) return;
+
+        final detections = await _detector.detect(bytes);
+        final result = _guidance.analyze(detections);
+
+        if (mounted) setState(() => _guidanceResult = result);
+      } catch (_) {
+        // silently ignore per-frame errors
+      } finally {
+        _isAnalyzing = false;
+      }
     });
   }
 
+  /// Extract raw bytes from a CameraImage.
+  /// Handles both JPEG (single plane) and YUV420 (multi-plane) formats.
+  Uint8List _cameraImageToBytes(CameraImage image) {
+    try {
+      if (image.format.group == ImageFormatGroup.jpeg) {
+        // JPEG: single plane, already encoded
+        return image.planes[0].bytes;
+      }
+
+      // YUV420 → concatenate all plane bytes (DetectorService decodes via image pkg)
+      // We build a minimal JPEG-compatible buffer: just pass the Y plane as a
+      // greyscale stand-in if we can't encode properly here.  The image package
+      // inside DetectorService will handle decoding.
+      final WriteBuffer buffer = WriteBuffer();
+      for (final Plane plane in image.planes) {
+        buffer.putUint8List(plane.bytes);
+      }
+      return buffer.done().buffer.asUint8List();
+    } catch (_) {
+      return Uint8List(0);
+    }
+  }
+
+  // ─── Camera controls ──────────────────────────────────────────────────────
   Future<void> _switchCamera() async {
     useFrontCamera = !useFrontCamera;
     setState(() => _initializing = true);
@@ -214,18 +258,16 @@ class _CameraScreenState extends State<CameraScreen>
 
   Future<void> _toggleFlash() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-
     try {
       flashOn = !flashOn;
-      await _controller!.setFlashMode(
-        flashOn ? FlashMode.torch : FlashMode.off,
-      );
+      await _controller!
+          .setFlashMode(flashOn ? FlashMode.torch : FlashMode.off);
       setState(() {});
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Flash error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Flash error: $e')));
+      }
     }
   }
 
@@ -236,10 +278,10 @@ class _CameraScreenState extends State<CameraScreen>
       await _controller!.setExposureOffset(value);
       setState(() => _exposure = value);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Exposure error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Exposure error: $e')));
+      }
     }
   }
 
@@ -250,22 +292,28 @@ class _CameraScreenState extends State<CameraScreen>
       await _controller!.setZoomLevel(value);
       setState(() => _zoom = value);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Zoom error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Zoom error: $e')));
+      }
     }
   }
 
   Future<void> _capturePhoto() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
 
+    // Pause stream while capturing to avoid race condition
+    try {
+      await _controller!.stopImageStream();
+    } catch (_) {}
+
     try {
       final XFile file = await _controller!.takePicture();
 
-      // Pass filters/values with the route extra so feedback/saving screen can apply them
       final payload = {
         'path': file.path,
+        'placementScore': _guidanceResult.placementScore,
+        'guidanceStatus': _guidanceResult.status.name,
         'filters': {
           'brightness': _brightness,
           'contrast': _contrast,
@@ -276,82 +324,96 @@ class _CameraScreenState extends State<CameraScreen>
         },
       };
 
-      context.push('/feedback', extra: payload);
+      if (mounted) context.push('/feedback', extra: payload);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Capture failed: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Capture failed: $e')));
+        // Restart stream if capture fails
+        await _startImageStream();
+      }
     }
   }
 
-  // Build a color matrix for contrast/brightness/saturation adjustments to preview.
-  // Contrast: 1.0 = normal. Brightness: 0 = normal. Saturation: 1 = normal.
+  // ─── Pro controls bottom sheet ────────────────────────────────────────────
+  void _openProControls() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black87,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 5,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const Text(
+              "Pro Controls",
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            _sliderControl(
+              label: "Exposure",
+              value: _exposure,
+              min: _minExposure,
+              max: _maxExposure,
+              onChanged: (v) {
+                setState(() => _exposure = v);
+                _controller?.setExposureOffset(v);
+              },
+            ),
+            _sliderControl(
+              label: "Zoom",
+              value: _zoom,
+              min: _minZoom,
+              max: _maxZoom,
+              onChanged: (v) {
+                setState(() => _zoom = v);
+                _controller?.setZoomLevel(v);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Color matrix ─────────────────────────────────────────────────────────
   List<double> _colorMatrix({
     required double brightness,
     required double contrast,
     required double saturation,
   }) {
-    // contrast matrix
     final c = contrast;
     final t = (1.0 - c) * 0.5 * 255.0;
     final cm = [
-      c,
-      0,
-      0,
-      0,
-      brightness * 255 + t,
-      0,
-      c,
-      0,
-      0,
-      brightness * 255 + t,
-      0,
-      0,
-      c,
-      0,
-      brightness * 255 + t,
-      0,
-      0,
-      0,
-      1,
-      0,
+      c, 0, 0, 0, brightness * 255 + t,
+      0, c, 0, 0, brightness * 255 + t,
+      0, 0, c, 0, brightness * 255 + t,
+      0, 0, 0, 1, 0,
     ];
-
-    // saturation matrix
-    final rWeight = 0.2126;
-    final gWeight = 0.7152;
-    final bWeight = 0.0722;
+    final rW = 0.2126, gW = 0.7152, bW = 0.0722;
     final s = saturation;
-    final sr = (1 - s) * rWeight;
-    final sg = (1 - s) * gWeight;
-    final sb = (1 - s) * bWeight;
+    final sr = (1 - s) * rW, sg = (1 - s) * gW, sb = (1 - s) * bW;
     final sm = [
-      sr + s,
-      sg,
-      sb,
-      0,
-      0,
-      sr,
-      sg + s,
-      sb,
-      0,
-      0,
-      sr,
-      sg,
-      sb + s,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
+      sr + s, sg,     sb,     0, 0,
+      sr,     sg + s, sb,     0, 0,
+      sr,     sg,     sb + s, 0, 0,
+      0,      0,      0,      1, 0,
     ];
-
-    // multiply sm * cm (5x4 matrices represented as 4x5 here) - approximate by applying saturation then contrast/brightness
-    // For simplicity, first apply saturation then contrast/brightness by combining matrices manually:
-    // Result = cm * sm
     List<double> result = List.filled(20, 0);
     for (int row = 0; row < 4; row++) {
       for (int col = 0; col < 5; col++) {
@@ -359,13 +421,33 @@ class _CameraScreenState extends State<CameraScreen>
         for (int k = 0; k < 4; k++) {
           v += cm[row * 5 + k] * sm[k * 5 + col];
         }
-        v += cm[row * 5 + 4]; // bias
+        v += cm[row * 5 + 4];
         result[row * 5 + col] = v;
       }
     }
     return result;
   }
 
+  // ─── Guidance bubble helpers ──────────────────────────────────────────────
+  Color get _guidanceBubbleColor {
+    switch (_guidanceResult.status) {
+      case PlacementStatus.centered:
+        return Colors.green.withOpacity(0.75);
+      case PlacementStatus.noObject:
+        return Colors.black.withOpacity(0.45);
+      default:
+        return Colors.orange.withOpacity(0.75);
+    }
+  }
+
+  Color get _scoreColor {
+    final score = _guidanceResult.placementScore;
+    if (score >= 80) return Colors.greenAccent;
+    if (score >= 50) return Colors.orange;
+    return Colors.redAccent;
+  }
+
+  // ─── Widget helpers ───────────────────────────────────────────────────────
   Widget _sliderControl({
     required String label,
     required double value,
@@ -376,10 +458,8 @@ class _CameraScreenState extends State<CameraScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
-        ),
+        Text(label,
+            style: const TextStyle(color: Colors.white70, fontSize: 14)),
         Slider(
           value: value,
           min: min,
@@ -392,119 +472,6 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
-  Widget _proSideButton(IconData icon, bool fromLeft) => GestureDetector(
-    onTap: () {
-      setState(() {
-        _showProPanel = !_showProPanel;
-        _panelFromLeft = fromLeft;
-      });
-    },
-    child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Icon(icon, size: 28, color: Colors.white),
-    ),
-  );
-
-  // Widget _buildManualControls(BuildContext ctx) {
-  //   final mq = MediaQuery.of(ctx);
-  //   final width = mq.size.width * 0.88;
-
-  //   return Container(
-  //     width: width,
-  //     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-  //     decoration: BoxDecoration(
-  //       color: Colors.black.withOpacity(0.45),
-  //       borderRadius: BorderRadius.circular(16),
-  //       border: Border.all(color: Colors.white24),
-  //     ),
-  //     child: Column(
-  //       mainAxisSize: MainAxisSize.min,
-  //       children: [
-  //         // Exposure (hardware-backed)
-  //         _labelWithValue("Exposure", "${_exposure.toStringAsFixed(2)}"),
-  //         Slider(
-  //           value: _exposure,
-  //           min: _minExposure,
-  //           max: _maxExposure,
-  //           onChanged: (v) => _setExposure(v),
-  //           activeColor: Colors.greenAccent,
-  //           inactiveColor: Colors.white12,
-  //         ),
-  //         // Zoom (hardware-backed)
-  //         _labelWithValue("Zoom", "${_zoom.toStringAsFixed(2)}x"),
-  //         Slider(
-  //           value: _zoom,
-  //           min: _minZoom,
-  //           max: _maxZoom,
-  //           onChanged: (v) => _setZoom(v),
-  //           activeColor: Colors.greenAccent,
-  //           inactiveColor: Colors.white12,
-  //         ),
-  //         // Brightness (preview only)
-  //         _labelWithValue("Brightness (preview)", _brightness.toStringAsFixed(2)),
-  //         Slider(
-  //           value: _brightness,
-  //           min: -0.8,
-  //           max: 0.8,
-  //           onChanged: (v) => setState(() => _brightness = v),
-  //           activeColor: Colors.blueAccent,
-  //           inactiveColor: Colors.white12,
-  //         ),
-  //         // Contrast (preview only)
-  //         _labelWithValue("Contrast (preview)", _contrast.toStringAsFixed(2)),
-  //         Slider(
-  //           value: _contrast,
-  //           min: 0.2,
-  //           max: 3.0,
-  //           onChanged: (v) => setState(() => _contrast = v),
-  //           activeColor: Colors.purpleAccent,
-  //           inactiveColor: Colors.white12,
-  //         ),
-  //         // Saturation (preview only)
-  //         _labelWithValue("Saturation (preview)", _saturation.toStringAsFixed(2)),
-  //         Slider(
-  //           value: _saturation,
-  //           min: 0.0,
-  //           max: 2.0,
-  //           onChanged: (v) => setState(() => _saturation = v),
-  //           activeColor: Colors.orangeAccent,
-  //           inactiveColor: Colors.white12,
-  //         ),
-  //         // ISO simulated (informational)
-  //         _labelWithValue("ISO (simulated)", _isoSim.toInt().toString()),
-  //         Slider(
-  //           value: _isoSim,
-  //           min: 50,
-  //           max: 3200,
-  //           onChanged: (v) => setState(() => _isoSim = v),
-  //           activeColor: Colors.amber,
-  //           inactiveColor: Colors.white12,
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  Widget _labelWithValue(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label, style: const TextStyle(color: Colors.white70)),
-          ),
-          Text(value, style: const TextStyle(color: Colors.white70)),
-        ],
-      ),
-    );
-  }
-
-  // UI pieces
   Widget _miniStat(String text, {IconData? icon}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -519,24 +486,25 @@ class _CameraScreenState extends State<CameraScreen>
           if (icon != null)
             Icon(icon, size: 12, color: Colors.greenAccent.withOpacity(0.9)),
           if (icon != null) const SizedBox(width: 6),
-          Text(text, style: const TextStyle(color: Colors.white, fontSize: 11)),
+          Text(text,
+              style: const TextStyle(color: Colors.white, fontSize: 11)),
         ],
       ),
     );
   }
 
   Widget _sideButton(IconData icon, VoidCallback onTap) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Icon(icon, size: 26, color: Colors.white),
-    ),
-  );
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Icon(icon, size: 26, color: Colors.white),
+        ),
+      );
 
   Widget _secondaryToolbar() {
     return Container(
@@ -549,86 +517,77 @@ class _CameraScreenState extends State<CameraScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           _toolbarButton(
-            "Thirds",
-            showThirds,
-            (v) => setState(() => showThirds = v),
-          ),
+              "Thirds", showThirds, (v) => setState(() => showThirds = v)),
           const SizedBox(width: 8),
           _toolbarButton(
-            "Center",
-            showCenter,
-            (v) => setState(() => showCenter = v),
-          ),
+              "Center", showCenter, (v) => setState(() => showCenter = v)),
           const SizedBox(width: 8),
           _toolbarButton(
-            "Golden",
-            showGolden,
-            (v) => setState(() => showGolden = v),
-          ),
+              "Golden", showGolden, (v) => setState(() => showGolden = v)),
         ],
       ),
     );
   }
 
-  Widget _toolbarButton(String title, bool value, ValueChanged<bool> onTap) {
+  Widget _toolbarButton(
+      String title, bool value, ValueChanged<bool> onTap) {
     return GestureDetector(
       onTap: () => onTap(!value),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: value ? Colors.greenAccent.withOpacity(0.85) : Colors.white12,
+          color:
+              value ? Colors.greenAccent.withOpacity(0.85) : Colors.white12,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(
-          title,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-        ),
+        child: Text(title,
+            style: const TextStyle(color: Colors.white, fontSize: 13)),
       ),
     );
   }
 
   Widget _captureButton() => GestureDetector(
-    onTap: _capturePhoto,
-    child: Container(
-      height: 84,
-      width: 84,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 5),
-        boxShadow: [
-          BoxShadow(color: Colors.white.withOpacity(0.08), blurRadius: 24),
-        ],
-      ),
-    ),
-  );
+        onTap: _capturePhoto,
+        child: Container(
+          height: 84,
+          width: 84,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 5),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.white.withOpacity(0.08), blurRadius: 24),
+            ],
+          ),
+        ),
+      );
 
   Widget _bottomNavBar(BuildContext context) => Container(
-    height: 70,
-    padding: const EdgeInsets.symmetric(horizontal: 18),
-    color: Colors.black.withOpacity(0.95),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _bottomItem(Icons.home, "Home", "/home"),
-        _bottomItem(Icons.camera_alt, "Camera", "/camera"),
-        _bottomItem(Icons.video_library, "Media", "/gallery"),
-        _bottomItem(Icons.settings, "Settings", "/settings"),
-      ],
-    ),
-  );
+        height: 70,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        color: Colors.black.withOpacity(0.95),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _bottomItem(Icons.home, "Home", "/home"),
+            _bottomItem(Icons.camera_alt, "Camera", "/camera"),
+            _bottomItem(Icons.video_library, "Media", "/gallery"),
+            _bottomItem(Icons.settings, "Settings", "/settings"),
+          ],
+        ),
+      );
 
   Widget _bottomItem(IconData icon, String label, String route) {
-    final isActive = GoRouterState.of(context).uri.toString() == route;
+    final isActive =
+        GoRouterState.of(context).uri.toString() == route;
     return GestureDetector(
       onTap: () => context.go(route),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 24,
-            color: isActive ? Colors.greenAccent : Colors.white70,
-          ),
+          Icon(icon,
+              size: 24,
+              color: isActive ? Colors.greenAccent : Colors.white70),
           const SizedBox(height: 4),
           Text(
             label,
@@ -642,12 +601,23 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
+  Widget _labelWithValue(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Expanded(
+                child: Text(label,
+                    style: const TextStyle(color: Colors.white70))),
+            Text(value, style: const TextStyle(color: Colors.white70)),
+          ],
+        ),
+      );
+
+  // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final isLandscape = media.size.width > media.size.height;
 
-    // build color filter matrix for preview
     final colorMatrix = _colorMatrix(
       brightness: _brightness,
       contrast: _contrast,
@@ -659,7 +629,7 @@ class _CameraScreenState extends State<CameraScreen>
       bottomNavigationBar: _bottomNavBar(context),
       body: Stack(
         children: [
-          // camera preview
+          // ── Camera preview ──────────────────────────────────────────────
           Positioned.fill(
             child: _controller != null && _controller!.value.isInitialized
                 ? ColorFiltered(
@@ -668,7 +638,8 @@ class _CameraScreenState extends State<CameraScreen>
                   )
                 : const Center(child: CircularProgressIndicator()),
           ),
-          // Slide-in Pro Panel
+
+          // ── Pro side panel ──────────────────────────────────────────────
           if (_showProPanel)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 300),
@@ -687,16 +658,16 @@ class _CameraScreenState extends State<CameraScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
+                          const Text(
                             "Pro Controls",
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
+                            icon: const Icon(Icons.close,
+                                color: Colors.white),
                             onPressed: () =>
                                 setState(() => _showProPanel = false),
                           ),
@@ -750,7 +721,7 @@ class _CameraScreenState extends State<CameraScreen>
               ),
             ),
 
-          // overlays: grid
+          // ── Grid overlays ────────────────────────────────────────────────
           if (showThirds || showCenter || showGolden)
             Positioned.fill(
               child: CustomPaint(
@@ -764,7 +735,7 @@ class _CameraScreenState extends State<CameraScreen>
               ),
             ),
 
-          // top stats (wrap)
+          // ── Top stats bar ─────────────────────────────────────────────────
           Positioned(
             top: media.padding.top + 12,
             left: 12,
@@ -776,20 +747,17 @@ class _CameraScreenState extends State<CameraScreen>
                 _miniStat("25mm", icon: Icons.camera_alt),
                 _miniStat("1/50", icon: Icons.shutter_speed),
                 _miniStat("f/1.8", icon: Icons.blur_on),
-                _miniStat(
-                  "ISO ${_isoSim.toInt()}",
-                  icon: Icons.brightness_auto,
-                ),
-                _miniStat(
-                  "${(_exposure).toStringAsFixed(2)} EV",
-                  icon: Icons.exposure,
-                ),
-                _miniStat("${_zoom.toStringAsFixed(1)}x", icon: Icons.zoom_in),
+                _miniStat("ISO ${_isoSim.toInt()}",
+                    icon: Icons.brightness_auto),
+                _miniStat("${_exposure.toStringAsFixed(2)} EV",
+                    icon: Icons.exposure),
+                _miniStat("${_zoom.toStringAsFixed(1)}x",
+                    icon: Icons.zoom_in),
               ],
             ),
           ),
 
-          // right side simple controls
+          // ── Right side buttons ────────────────────────────────────────────
           Positioned(
             right: 12,
             top: media.size.height * 0.22,
@@ -807,38 +775,59 @@ class _CameraScreenState extends State<CameraScreen>
             ),
           ),
 
-          // AI bubble
+          // ── AI Guidance bubble ────────────────────────────────────────────
           Positioned(
-            top: media.size.height * 0.14,
-            left: 0,
-            right: 0,
+            top: media.size.height * 0.13,
+            left: 16,
+            right: 16,
             child: Center(
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
+                    horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.45),
+                  color: _guidanceBubbleColor,
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _guidanceResult.status == PlacementStatus.centered
+                        ? Colors.greenAccent.withOpacity(0.8)
+                        : Colors.white24,
+                    width: 1,
+                  ),
                 ),
-                child: const Text(
-                  "AI Tip: Center the product",
-                  style: TextStyle(color: Colors.white),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // AI icon
+                    const Icon(Icons.auto_awesome,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    // Message
+                    Flexible(
+                      child: Text(
+                        _guidanceResult.message,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 14),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
 
-          // manual controls (center-bottom)
-          // Positioned(
-          //   bottom: media.size.height * 0.22,
-          //   left: 0,
-          //   right: 0,
-          //   child: Center(child: _buildManualControls(context)),
-          // ),
+          // ── Placement score ring ──────────────────────────────────────────
+          Positioned(
+            top: media.size.height * 0.20,
+            left: 16,
+            child: _PlacementScoreWidget(
+              score: _guidanceResult.placementScore,
+              color: _scoreColor,
+            ),
+          ),
 
-          // secondary toolbar (above bottom)
+          // ── Secondary toolbar (overlay toggles) ───────────────────────────
           Positioned(
             bottom: media.size.height * 0.10,
             left: 0,
@@ -846,7 +835,7 @@ class _CameraScreenState extends State<CameraScreen>
             child: Center(child: _secondaryToolbar()),
           ),
 
-          // capture
+          // ── Capture row ───────────────────────────────────────────────────
           Positioned(
             bottom: media.size.height * 0.02,
             left: 0,
@@ -855,17 +844,58 @@ class _CameraScreenState extends State<CameraScreen>
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Left button
-                _sideButton(Icons.photo_library, () {
-                  context.go('/gallery'); // example action
-                }),
-
-                // Capture button in center
+                _sideButton(
+                    Icons.photo_library, () => context.go('/gallery')),
                 _captureButton(),
-
-                // Right button
                 _sideButton(Icons.cameraswitch, _switchCamera),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Placement score ring widget ─────────────────────────────────────────────
+class _PlacementScoreWidget extends StatelessWidget {
+  final int score;
+  final Color color;
+
+  const _PlacementScoreWidget({
+    required this.score,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.black.withOpacity(0.45),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 50,
+            height: 50,
+            child: CircularProgressIndicator(
+              value: score / 100.0,
+              strokeWidth: 4,
+              backgroundColor: Colors.white12,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          Text(
+            '$score',
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
