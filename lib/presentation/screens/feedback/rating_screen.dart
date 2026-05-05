@@ -451,22 +451,22 @@ class _RatingScreenState extends State<RatingScreen> {
                           ),
                         ),
                         const SizedBox(width: 14),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueAccent,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: () {
-                              // TODO: implement save
-                            },
-                            child: const Text('Save',
-                                style: TextStyle(color: Colors.white)),
-                          ),
-                        ),
+                        // Expanded(
+                        //   child: ElevatedButton(
+                        //     style: ElevatedButton.styleFrom(
+                        //       backgroundColor: Colors.blueAccent,
+                        //       padding:
+                        //           const EdgeInsets.symmetric(vertical: 14),
+                        //       shape: RoundedRectangleBorder(
+                        //           borderRadius: BorderRadius.circular(12)),
+                        //     ),
+                        //     onPressed: () {
+                        //       // TODO: implement save
+                        //     },
+                        //     child: const Text('Save',
+                        //         style: TextStyle(color: Colors.white)),
+                        //   ),
+                        // ),
                       ],
                     ),
                     const SizedBox(height: 20),

@@ -1,5 +1,8 @@
+// auth_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -8,15 +11,24 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
+class _AuthScreenState extends State<AuthScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final _loginEmailController = TextEditingController();
+  // Login
+  final _loginEmailController    = TextEditingController();
   final _loginPasswordController = TextEditingController();
 
-  final _signupNameController = TextEditingController();
-  final _signupEmailController = TextEditingController();
+  // Sign up
+  final _signupNameController     = TextEditingController();
+  final _signupEmailController    = TextEditingController();
   final _signupPasswordController = TextEditingController();
+
+  // UI state
+  bool _loginLoading  = false;
+  bool _signupLoading = false;
+  bool _loginObscure  = true;
+  bool _signupObscure = true;
 
   @override
   void initState() {
@@ -34,6 +46,63 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _signupPasswordController.dispose();
     super.dispose();
   }
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  Future<void> _onLogin() async {
+    setState(() => _loginLoading = true);
+
+    final error = await AuthService.instance.login(
+      email:    _loginEmailController.text,
+      password: _loginPasswordController.text,
+    );
+
+    if (!mounted) return;
+    setState(() => _loginLoading = false);
+
+    if (error != null) {
+      _showError(error);
+    } else {
+      context.go('/home');
+    }
+  }
+
+  Future<void> _onSignUp() async {
+    setState(() => _signupLoading = true);
+
+    final error = await AuthService.instance.signUp(
+      name:     _signupNameController.text,
+      email:    _signupEmailController.text,
+      password: _signupPasswordController.text,
+    );
+
+    if (!mounted) return;
+    setState(() => _signupLoading = false);
+
+    if (error != null) {
+      _showError(error);
+    } else {
+      // Auto-login after sign up
+      await AuthService.instance.login(
+        email:    _signupEmailController.text,
+        password: _signupPasswordController.text,
+      );
+      if (mounted) context.go('/home');
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +125,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 30),
-            // Tabs
+
+            // ── Tab bar ───────────────────────────────────────────
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
@@ -81,7 +151,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
             ),
             const SizedBox(height: 30),
-            // Tab views
+
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -97,31 +167,34 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
+  // ── Login tab ──────────────────────────────────────────────────────────────
+
   Widget _buildLoginTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          _inputField('Email', _loginEmailController, Icons.email),
+          _inputField(
+            hint: 'Email',
+            controller: _loginEmailController,
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+          ),
           const SizedBox(height: 20),
-          _inputField('Password', _loginPasswordController, Icons.lock, obscureText: true),
+          _inputField(
+            hint: 'Password',
+            controller: _loginPasswordController,
+            icon: Icons.lock_outline,
+            obscureText: _loginObscure,
+            toggleObscure: () =>
+                setState(() => _loginObscure = !_loginObscure),
+          ),
           const SizedBox(height: 30),
-          _actionButton('Login', () {
-  final email = _loginEmailController.text.trim();
-  final pass = _loginPasswordController.text.trim();
-
-  if (email == 'test' && pass == 'test') {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Login Successful!')),
-    );
-    context.go('/home');
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invalid credentials (use test/test)')),
-    );
-  }
-}),
-
+          _actionButton(
+            label: 'Login',
+            loading: _loginLoading,
+            onTap: _onLogin,
+          ),
           const SizedBox(height: 20),
           TextButton(
             onPressed: () {},
@@ -135,27 +208,43 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
+  // ── Sign up tab ────────────────────────────────────────────────────────────
+
   Widget _buildSignUpTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          _inputField('Full Name', _signupNameController, Icons.person),
+          _inputField(
+            hint: 'Full Name',
+            controller: _signupNameController,
+            icon: Icons.person_outline,
+          ),
           const SizedBox(height: 20),
-          _inputField('Email', _signupEmailController, Icons.email),
+          _inputField(
+            hint: 'Email',
+            controller: _signupEmailController,
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+          ),
           const SizedBox(height: 20),
-          _inputField('Password', _signupPasswordController, Icons.lock, obscureText: true),
+          _inputField(
+            hint: 'Password',
+            controller: _signupPasswordController,
+            icon: Icons.lock_outline,
+            obscureText: _signupObscure,
+            toggleObscure: () =>
+                setState(() => _signupObscure = !_signupObscure),
+          ),
           const SizedBox(height: 30),
-          _actionButton('Sign Up', () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sign Up clicked')),
-            );
-          }),
+          _actionButton(
+            label: 'Sign Up',
+            loading: _signupLoading,
+            onTap: _onSignUp,
+          ),
           const SizedBox(height: 20),
           TextButton(
-            onPressed: () {
-              _tabController.animateTo(0);
-            },
+            onPressed: () => _tabController.animateTo(0),
             child: const Text(
               'Already have an account? Login',
               style: TextStyle(color: Colors.white70),
@@ -166,16 +255,38 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _inputField(String hint, TextEditingController controller, IconData icon,
-      {bool obscureText = false}) {
+  // ── Shared widgets ─────────────────────────────────────────────────────────
+
+  Widget _inputField({
+    required String hint,
+    required TextEditingController controller,
+    required IconData icon,
+    bool obscureText = false,
+    VoidCallback? toggleObscure,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
+      keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.white54),
         prefixIcon: Icon(icon, color: Colors.blueAccent),
+        // Show eye toggle only for password fields
+        suffixIcon: toggleObscure != null
+            ? IconButton(
+                icon: Icon(
+                  obscureText
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: Colors.white38,
+                  size: 20,
+                ),
+                onPressed: toggleObscure,
+              )
+            : null,
         filled: true,
         fillColor: const Color(0xFF2C2C3E),
         border: OutlineInputBorder(
@@ -193,32 +304,51 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _actionButton(String text, VoidCallback onTap) {
+  Widget _actionButton({
+    required String label,
+    required bool loading,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: loading ? null : onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+          gradient: LinearGradient(
+            colors: loading
+                ? [Colors.grey.shade700, Colors.grey.shade600]
+                : [const Color(0xFF6A11CB), const Color(0xFF2575FC)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4))
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
           ],
         ),
         child: Center(
-          child: Text(
-            text,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          child: loading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );

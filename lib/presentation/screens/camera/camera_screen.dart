@@ -15,12 +15,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:saver_gallery/saver_gallery.dart';
+import 'package:smart_camera/services/capture_storage_service.dart';
 import '../../../core/utils/overlay_painter.dart';
 import '../../widgets/permission_popup.dart';
 import '../../../services/detector_service.dart';
 import '../../../services/guidance_service.dart';
-
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 // ─── Debug flag — set false before shipping ───────────────────────────────────
 const bool kShowDebugOverlay = true;
 
@@ -428,35 +432,118 @@ class _CameraScreenState extends State<CameraScreen>
     } catch (_) {}
   }
 
-  Future<void> _capturePhoto() async {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    try {
-      await _controller!.stopImageStream();
-    } catch (_) {}
-    try {
-      final XFile file = await _controller!.takePicture();
-      final payload = {
-        'path': file.path,
-        'placementScore': _guidanceResult.placementScore,
-        'guidanceStatus': _guidanceResult.status.name,
-        'filters': {
-          'brightness': _brightness,
-          'contrast': _contrast,
-          'saturation': _saturation,
-          'iso': _isoSim,
-          'exposure': _exposure,
-          'zoom': _zoom,
-        },
-      };
-      if (mounted) context.push('/feedback', extra: payload);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Capture failed: $e')));
-        await _startImageStream();
-      }
+  // Future<void> _capturePhoto() async {
+  //   if (_controller == null || !_controller!.value.isInitialized) return;
+  //   try {
+  //     await _controller!.stopImageStream();
+  //   } catch (_) {}
+  //   try {
+  //     final XFile file = await _controller!.takePicture();
+  //     final payload = {
+  //       'path': file.path,
+  //       'placementScore': _guidanceResult.placementScore,
+  //       'guidanceStatus': _guidanceResult.status.name,
+  //       'filters': {
+  //         'brightness': _brightness,
+  //         'contrast': _contrast,
+  //         'saturation': _saturation,
+  //         'iso': _isoSim,
+  //         'exposure': _exposure,
+  //         'zoom': _zoom,
+  //       },
+  //     };
+  //     if (mounted) context.push('/feedback', extra: payload);
+  //   } catch (e) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context)
+  //           .showSnackBar(SnackBar(content: Text('Capture failed: $e')));
+  //       await _startImageStream();
+  //     }
+  //   }
+  // }
+
+Future<void> _capturePhoto() async {
+  if (_controller == null || !_controller!.value.isInitialized) return;
+
+  try {
+    // Stop stream before capture (important for stability)
+    await _controller!.stopImageStream();
+
+    // Capture image
+    final XFile file = await _controller!.takePicture();
+
+    // Copy to temp directory (safer for gallery save)
+    final directory = await getTemporaryDirectory();
+    final String tempPath =
+        '${directory.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    final File savedImage = await File(file.path).copy(tempPath);
+
+    // ==============================
+    // SAVE TO GALLERY (FIXED)
+    // ==============================
+    final result = await SaverGallery.saveFile(
+  filePath: savedImage.path,
+  fileName: 'camera_${DateTime.now().millisecondsSinceEpoch}',
+  skipIfExists: false,
+);
+final entry = await CaptureStorageService.instance.saveCapture(
+  sourcePath: savedImage.path,
+  placementScore: _guidanceResult.placementScore,
+  guidanceStatus: _guidanceResult.status.name,
+  filters: {
+    'brightness': _brightness,
+    'contrast': _contrast,
+    'saturation': _saturation,
+    'iso': _isoSim,
+    'exposure': _exposure,
+    'zoom': _zoom,
+  },
+);
+
+if (entry != null) {
+  debugPrint('Saved to app storage: ${entry.imagePath}');
+}
+
+    debugPrint("Saved to gallery: ${result.isSuccess}");
+
+    // Restart stream after capture
+    await _startImageStream();
+
+    // Payload for next screen
+    final payload = {
+      'path': savedImage.path,
+      'placementScore': _guidanceResult.placementScore,
+      'guidanceStatus': _guidanceResult.status.name,
+      'filters': {
+        'brightness': _brightness,
+        'contrast': _contrast,
+        'saturation': _saturation,
+        'iso': _isoSim,
+        'exposure': _exposure,
+        'zoom': _zoom,
+      },
+    };
+
+    if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Image saved to gallery ✅'),
+      backgroundColor: Colors.green,
+      duration: Duration(seconds: 2),
+    ),
+  );
+      // context.push('/feedback', extra: payload);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Capture failed: $e')),
+      );
+      await _startImageStream();
     }
   }
+}
 
   // ─── Pro controls bottom sheet ────────────────────────────────────────────
   void _openProControls() {
